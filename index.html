@@ -17,7 +17,7 @@
     }
 
     .container{
-      width:min(90vw,480px);
+      width:min(90vw,420px);
       display:grid;
       gap:16px;
       text-align:center;
@@ -25,7 +25,14 @@
 
     h1{
       margin:0;
-      font-size:1.6rem;
+      font-size:1.8rem;
+      letter-spacing:.04em;
+    }
+
+    .subtitle{
+      margin-top:-8px;
+      font-size:.9rem;
+      color:#aaa;
     }
 
     label{
@@ -56,11 +63,6 @@
       cursor:default;
     }
 
-    .primary{
-      background:#fff;
-      color:#111;
-    }
-
     .startNow{
       font-size:1.15rem;
       padding:16px;
@@ -84,52 +86,19 @@
       font-variant-numeric:tabular-nums;
     }
 
-    .progressWrap{
-      width:100%;
-      display:grid;
-      gap:8px;
-    }
-
-    .progressLabel{
-      font-size:.92rem;
-      color:#bbb;
-      min-height:1.2em;
-    }
-
     .debug{
       font-size:.82rem;
-      color:#888;
+      color:#777;
       min-height:1.2em;
       word-break:break-word;
     }
 
-    progress{
-      width:100%;
-      height:14px;
-      appearance:none;
-    }
-
-    progress::-webkit-progress-bar{
-      background:#222;
-      border-radius:999px;
-    }
-
-    progress::-webkit-progress-value{
-      background:#fff;
-      border-radius:999px;
-    }
-
-    progress::-moz-progress-bar{
-      background:#fff;
-      border-radius:999px;
+    .hidden{
+      display:none;
     }
 
     audio{
       width:100%;
-    }
-
-    .hidden{
-      display:none;
     }
 
     input[type="datetime-local"]{
@@ -149,23 +118,18 @@
 
 <body>
   <main class="container">
-    <h1>PRIME (Heather Christian)</h1>
+    <h1>PRIME</h1>
+    <div class="subtitle">Heather Christian</div>
 
-    <label for="startTime">Start Time (tap to set)</label>
-    <input id="startTime" type="datetime-local" step="1" placeholder="Tap to choose start time" />
+    <label for="startTime">Start Time</label>
+    <input id="startTime" type="datetime-local" step="1" />
 
-    <button id="playButton" class="primary">Load / Prepare</button>
-
-    <button id="startNowButton" class="primary startNow hidden">Start Now</button>
+    <button id="playButton">Begin</button>
+    <button id="startNowButton" class="startNow hidden">Begin</button>
 
     <div id="countdown" class="countdown"></div>
     <div id="status" class="status">Ready.</div>
     <div id="transport" class="transport">00:00 / 00:00</div>
-
-    <div class="progressWrap">
-      <div id="progressLabel" class="progressLabel">Download not started.</div>
-      <progress id="progressBar" value="0" max="1"></progress>
-    </div>
 
     <div id="debug" class="debug"></div>
 
@@ -187,22 +151,16 @@
     const statusEl = document.getElementById("status");
     const countdownEl = document.getElementById("countdown");
     const transportEl = document.getElementById("transport");
-    const progressBar = document.getElementById("progressBar");
-    const progressLabel = document.getElementById("progressLabel");
     const debugEl = document.getElementById("debug");
 
     let countdownTimer = null;
     let countdownInterval = null;
     let driftInterval = null;
-    let progressPollInterval = null;
 
     let scheduledAnchorMs = null;
     let isSoftCorrecting = false;
     let sourceAssigned = false;
-    let preparationStarted = false;
-    let autoStartAttempted = false;
     let waitingForManualStart = false;
-    let playbackHasBegun = false;
 
     const DRIFT_CHECK_MS = 5000;
     const DRIFT_THRESHOLD_SEC = 1.5;
@@ -218,10 +176,6 @@
 
     function setCountdown(msg){
       countdownEl.textContent = msg;
-    }
-
-    function setProgressLabel(msg){
-      progressLabel.textContent = msg;
     }
 
     function setDebug(msg){
@@ -264,21 +218,6 @@
       }
     }
 
-    function startProgressPolling(){
-      stopProgressPolling();
-      progressPollInterval = setInterval(()=>{
-        updateDownloadProgress();
-        updateTransport();
-      }, 500);
-    }
-
-    function stopProgressPolling(){
-      if(progressPollInterval){
-        clearInterval(progressPollInterval);
-        progressPollInterval = null;
-      }
-    }
-
     function resetPlaybackRate(){
       audio.playbackRate = NORMAL_RATE;
       isSoftCorrecting = false;
@@ -302,10 +241,6 @@
       const m = Math.floor(sec / 60);
       const s = sec % 60;
       return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-    }
-
-    function formatPercent(value){
-      return `${Math.round(value * 100)}%`;
     }
 
     function updateTransport(){
@@ -363,29 +298,6 @@
       assignSourceIfNeeded();
       audio.preload = "auto";
       audio.load();
-      setProgressLabel("Downloading / buffering…");
-    }
-
-    function updateDownloadProgress(){
-      try{
-        if(!audio.duration || !isFinite(audio.duration) || audio.buffered.length === 0){
-          return;
-        }
-
-        let maxBufferedEnd = 0;
-
-        for(let i = 0; i < audio.buffered.length; i++){
-          maxBufferedEnd = Math.max(maxBufferedEnd, audio.buffered.end(i));
-        }
-
-        const ratio = Math.max(0, Math.min(1, maxBufferedEnd / audio.duration));
-        progressBar.value = ratio;
-        setProgressLabel(
-          `Buffered: ${formatPercent(ratio)} (${formatClockTime(maxBufferedEnd)} of ${formatClockTime(audio.duration)})`
-        );
-      }catch(err){
-        // silent
-      }
     }
 
     function hasBufferedThrough(targetTimeSec){
@@ -465,8 +377,8 @@
       const offsetSec = Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
 
       if(!hasEnoughToStartAt(offsetSec)){
-        setStatus("Still buffering for start…");
-        setDebug(`Need more buffer at ${formatClockTime(offsetSec)}.`);
+        setStatus("Still downloading…");
+        setDebug(`Need more audio at ${formatClockTime(offsetSec)}.`);
         return false;
       }
 
@@ -480,7 +392,6 @@
       showPlayer();
       await audio.play();
 
-      playbackHasBegun = true;
       waitingForManualStart = false;
       hideStartNow();
       setCountdown("");
@@ -492,8 +403,6 @@
     }
 
     async function tryAutomaticStart(){
-      autoStartAttempted = true;
-
       try{
         const started = await startPlaybackAtCurrentCorrectOffset();
         if(!started){
@@ -502,7 +411,7 @@
       }catch(err){
         waitingForManualStart = true;
         showStartNow();
-        setStatus("Tap Start Now");
+        setStatus("Tap Begin");
         setDebug(`Automatic start was blocked: ${err.message}`);
       }
     }
@@ -521,7 +430,7 @@
         }
 
         setCountdown(`Starting in ${formatCountdown(remaining)}`);
-        setStatus("Downloading / buffering…");
+        setStatus("Downloading…");
       }
 
       update();
@@ -539,11 +448,8 @@
       clearTimers();
       clearDriftMonitor();
       resetPlaybackRate();
-      stopProgressPolling();
       hideStartNow();
       waitingForManualStart = false;
-      playbackHasBegun = false;
-      autoStartAttempted = false;
       setDebug("");
 
       if(!startInput.value){
@@ -559,14 +465,11 @@
       playButton.disabled = true;
 
       try{
-        preparationStarted = true;
         hidePlayer();
         startDownload();
-        startProgressPolling();
-        setStatus("Connecting to audio…");
+        setStatus("Downloading…");
 
         await ensureMetadata();
-        updateDownloadProgress();
         updateTransport();
 
         const startTimeMs = new Date(startInput.value).getTime();
@@ -576,14 +479,14 @@
 
         if(offsetSec < 0){
           beginCountdown(startTimeMs);
-          setStatus("Downloading / buffering…");
+          setStatus("Downloading…");
           setDebug("Prepared for scheduled start.");
         }else{
           setCountdown("");
-          setStatus("Tap Start Now");
+          setStatus("Tap Begin");
           waitingForManualStart = true;
           showStartNow();
-          setDebug("Start time is already in the past; manual start will jump to the correct offset.");
+          setDebug("Start time is already in the past; Begin will jump to the correct offset.");
         }
       }catch(err){
         setStatus("Audio source did not load");
@@ -595,7 +498,7 @@
 
     async function handleManualStart(){
       if(scheduledAnchorMs == null){
-        setStatus("Load / Prepare first");
+        setStatus("Tap Begin first");
         return;
       }
 
@@ -619,7 +522,6 @@
     startNowButton.addEventListener("click", handleManualStart);
 
     audio.addEventListener("loadedmetadata", ()=>{
-      updateDownloadProgress();
       updateTransport();
       setDebug("Metadata loaded.");
     });
@@ -630,33 +532,25 @@
     audio.addEventListener("seeked", updateTransport);
 
     audio.addEventListener("progress", ()=>{
-      updateDownloadProgress();
       updateTransport();
 
       if(waitingForManualStart && scheduledAnchorMs != null){
         const offsetSec = Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
         if(hasEnoughToStartAt(offsetSec)){
-          setStatus("Ready — tap Start Now");
+          setStatus("Ready — tap Begin");
         }
       }
     });
 
     audio.addEventListener("canplay", ()=>{
-      updateDownloadProgress();
       updateTransport();
 
       if(waitingForManualStart && scheduledAnchorMs != null){
         const offsetSec = Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
         if(hasEnoughToStartAt(offsetSec)){
-          setStatus("Ready — tap Start Now");
+          setStatus("Ready — tap Begin");
         }
       }
-    });
-
-    audio.addEventListener("canplaythrough", ()=>{
-      progressBar.value = 1;
-      setProgressLabel("Buffered: 100%");
-      updateTransport();
     });
 
     audio.addEventListener("waiting", ()=>{
@@ -680,9 +574,7 @@
       clearTimers();
       clearDriftMonitor();
       resetPlaybackRate();
-      stopProgressPolling();
       waitingForManualStart = false;
-      playbackHasBegun = false;
       setCountdown("");
       setStatus("Playback ended");
       setDebug("");
