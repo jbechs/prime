@@ -79,6 +79,13 @@
       min-height:1.2em;
     }
 
+    .debug{
+      font-size:.82rem;
+      color:#888;
+      min-height:1.2em;
+      word-break:break-word;
+    }
+
     progress{
       width:100%;
       height:14px;
@@ -140,6 +147,8 @@
       <progress id="progressBar" value="0" max="1"></progress>
     </div>
 
+    <div id="debug" class="debug"></div>
+
     <audio
       id="audio"
       preload="none"
@@ -150,9 +159,6 @@
   </main>
 
   <script>
-    // Replace this with your real file URL once audio.eggtooth.xyz is active.
-    // Example:
-    // const AUDIO_URL = "https://audio.eggtooth.xyz/prime.mp3";
     const AUDIO_URL = "https://audio.eggtooth.xyz/prime.mp3";
 
     const audio = document.getElementById("audio");
@@ -162,15 +168,16 @@
     const countdownEl = document.getElementById("countdown");
     const progressBar = document.getElementById("progressBar");
     const progressLabel = document.getElementById("progressLabel");
+    const debugEl = document.getElementById("debug");
 
-    let primed = false;
     let countdownTimer = null;
     let countdownInterval = null;
     let driftInterval = null;
-    let pendingStartTimeMs = null;
+    let pendingStartAnchorMs = null;
     let scheduledAnchorMs = null;
     let isSoftCorrecting = false;
     let sourceAssigned = false;
+    let startRequested = false;
 
     const DRIFT_CHECK_MS = 5000;
     const DRIFT_THRESHOLD_SEC = 1.5;
@@ -192,6 +199,10 @@
       progressLabel.textContent = msg;
     }
 
+    function setDebug(msg){
+      debugEl.textContent = msg || "";
+    }
+
     function showPlayer(){
       audio.classList.remove("hidden");
       audio.controls = true;
@@ -207,7 +218,6 @@
         clearInterval(countdownInterval);
         countdownInterval = null;
       }
-
       if(countdownTimer){
         clearTimeout(countdownTimer);
         countdownTimer = null;
@@ -221,6 +231,11 @@
       }
     }
 
+    function resetPlaybackRate(){
+      audio.playbackRate = NORMAL_RATE;
+      isSoftCorrecting = false;
+    }
+
     function assignSourceIfNeeded(){
       if(sourceAssigned) return;
       audio.src = AUDIO_URL;
@@ -231,40 +246,51 @@
       const s = Math.ceil(ms / 1000);
       const m = Math.floor(s / 60);
       const sec = s % 60;
-      return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+      return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
     }
 
     function formatTrackTime(sec){
       sec = Math.max(0, Math.floor(sec));
       const m = Math.floor(sec / 60);
       const s = sec % 60;
-      return `${m}:${String(s).padStart(2,"0")}`;
+      return `${m}:${String(s).padStart(2, "0")}`;
     }
 
     function formatPercent(value){
       return `${Math.round(value * 100)}%`;
     }
 
-    async function ensureMetadata(){
+    async function ensureMetadata(timeoutMs = 30000){
       assignSourceIfNeeded();
 
-      if(audio.readyState >= 1) return;
+      if(audio.readyState >= 1 && isFinite(audio.duration) && audio.duration > 0){
+        return true;
+      }
 
-      await new Promise((resolve, reject)=>{
+      return new Promise((resolve, reject)=>{
         const timeout = setTimeout(()=>{
-          reject(new Error("metadata timeout"));
-        }, 20000);
+          cleanup();
+          reject(new Error("Metadata timeout"));
+        }, timeoutMs);
 
-        audio.addEventListener("loadedmetadata", ()=>{
+        function onLoaded(){
+          cleanup();
+          resolve(true);
+        }
+
+        function onError(){
+          cleanup();
+          reject(new Error("Audio load error"));
+        }
+
+        function cleanup(){
           clearTimeout(timeout);
-          resolve();
-        }, { once:true });
+          audio.removeEventListener("loadedmetadata", onLoaded);
+          audio.removeEventListener("error", onError);
+        }
 
-        audio.addEventListener("error", ()=>{
-          clearTimeout(timeout);
-          reject(new Error("audio load error"));
-        }, { once:true });
-
+        audio.addEventListener("loadedmetadata", onLoaded);
+        audio.addEventListener("error", onError);
         audio.load();
       });
     }
@@ -275,7 +301,6 @@
           resolve();
           return;
         }
-
         audio.addEventListener("seeked", resolve, { once:true });
       });
     }
@@ -300,7 +325,7 @@
           `Buffered: ${formatPercent(ratio)} (${formatTrackTime(bufferedEnd)} of ${formatTrackTime(audio.duration)})`
         );
       }catch(err){
-        // silent on purpose
+        // silent
       }
     }
 
@@ -326,13 +351,6 @@
     function hasEnoughToStartAt(offsetSec){
       if(!audio.duration || !isFinite(audio.duration)) return false;
       return hasBufferedThrough(offsetSec + START_BUFFER_SEC);
-    }
-
-    function resetPlaybackRate(){
-      if(audio.playbackRate !== NORMAL_RATE){
-        audio.playbackRate = NORMAL_RATE;
-      }
-      isSoftCorrecting = false;
     }
 
     function getExpectedTrackTimeSec(){
@@ -377,101 +395,59 @@
       }, DRIFT_CHECK_MS);
     }
 
-    async function primeFuturePlayback(){
-      await ensureMetadata();
-
-      hidePlayer();
+    async function startPlaybackAt(offsetSec, anchorMs){
       audio.pause();
-      audio.currentTime = 0;
-      audio.muted = true;
-      audio.playbackRate = NORMAL_RATE;
+      resetPlaybackRate();
 
-      if(hasEnoughToStartAt(0)){
-        await audio.play();
-        primed = true;
-        setStatus("Buffered and armed for countdown");
-      }else{
-        primed = false;
-        setStatus("Downloading / buffering for countdown");
-      }
-    }
-
-    async function startImmediate(offset){
-      await ensureMetadata();
-
-      audio.pause();
-      audio.playbackRate = NORMAL_RATE;
-
-      if(!hasEnoughToStartAt(offset)){
-        setStatus("Waiting for enough buffered audio…");
-        pendingStartTimeMs = Date.now() - (offset * 1000);
-        scheduledAnchorMs = pendingStartTimeMs;
-        return;
-      }
-
-      audio.currentTime = Math.max(0, offset);
+      audio.currentTime = Math.max(0, offsetSec);
       await waitForSeek();
 
       audio.muted = false;
       showPlayer();
       await audio.play();
 
-      scheduledAnchorMs = Date.now() - (audio.currentTime * 1000);
-      pendingStartTimeMs = null;
-      primed = false;
-
+      scheduledAnchorMs = anchorMs;
+      pendingStartAnchorMs = null;
       beginDriftMonitor();
+      setCountdown("");
       setStatus(`Playing from ${formatTrackTime(audio.currentTime)}`);
+      setDebug("");
     }
 
-    async function fireFutureStart(){
+    async function tryStartPendingPlayback(){
+      if(pendingStartAnchorMs == null) return;
+      if(audio.readyState < 1) return;
+      if(!audio.paused) return;
+
+      const desiredOffset = Math.max(0, (Date.now() - pendingStartAnchorMs) / 1000);
+
+      if(!hasEnoughToStartAt(desiredOffset)){
+        return;
+      }
+
       try{
-        await ensureMetadata();
-
-        if(!hasEnoughToStartAt(0)){
-          setStatus("Countdown reached zero. Waiting for buffered audio…");
-          pendingStartTimeMs = scheduledAnchorMs;
-          return;
-        }
-
-        audio.currentTime = 0;
-        await waitForSeek();
-
-        audio.muted = false;
-        audio.playbackRate = NORMAL_RATE;
-        showPlayer();
-
-        if(!primed){
-          await audio.play();
-        }
-
-        primed = false;
-        pendingStartTimeMs = null;
-
-        setCountdown("");
-        setStatus("Playing");
-        beginDriftMonitor();
+        await startPlaybackAt(desiredOffset, pendingStartAnchorMs);
       }catch(err){
-        console.error(err);
-        setStatus("Playback failed at start");
+        setStatus("Playback start was blocked");
+        setDebug(`Tap Play again if needed: ${err.message}`);
       }
     }
 
-    function beginCountdown(startTime){
+    function beginCountdown(startTimeMs){
       clearTimers();
 
       function update(){
-        const remaining = startTime - Date.now();
+        const remaining = startTimeMs - Date.now();
 
         if(remaining <= 0){
           clearTimers();
           setCountdown("Starting now");
-          fireFutureStart();
+          fireScheduledStart();
           return;
         }
 
         setCountdown(`Starting in ${formatCountdown(remaining)}`);
-        setStatus("Waiting");
+        setStatus("Downloading / buffering…");
       }
 
       update();
@@ -481,47 +457,50 @@
       countdownTimer = setTimeout(()=>{
         clearTimers();
         setCountdown("Starting now");
-        fireFutureStart();
-      }, Math.max(0, startTime - Date.now()));
+        fireScheduledStart();
+      }, Math.max(0, startTimeMs - Date.now()));
     }
 
-    async function tryPendingStart(){
-      if(pendingStartTimeMs == null) return;
-      if(audio.paused === false) return;
-      if(audio.readyState < 1) return;
+    async function fireScheduledStart(){
+      try{
+        await ensureMetadata();
 
-      const desiredOffset = Math.max(0, (Date.now() - pendingStartTimeMs) / 1000);
+        if(!hasEnoughToStartAt(0)){
+          setStatus("Countdown reached zero. Waiting for buffered audio…");
+          setDebug("Not enough buffered audio at scheduled start.");
+          pendingStartAnchorMs = scheduledAnchorMs;
+          return;
+        }
 
-      if(!hasEnoughToStartAt(desiredOffset)){
+        await startPlaybackAt(0, scheduledAnchorMs);
+      }catch(err){
+        setStatus("Playback start failed");
+        setDebug(`Scheduled start failed: ${err.message}`);
+      }
+    }
+
+    async function handleImmediateStart(offsetSec){
+      await ensureMetadata();
+
+      const anchorMs = Date.now() - (offsetSec * 1000);
+
+      if(!hasEnoughToStartAt(offsetSec)){
+        pendingStartAnchorMs = anchorMs;
+        scheduledAnchorMs = anchorMs;
+        setStatus("Waiting for enough buffered audio…");
+        setDebug("Immediate late-join start is waiting for buffer.");
         return;
       }
 
-      try{
-        audio.currentTime = desiredOffset;
-        await waitForSeek();
-
-        audio.muted = false;
-        audio.playbackRate = NORMAL_RATE;
-        showPlayer();
-        await audio.play();
-
-        scheduledAnchorMs = pendingStartTimeMs;
-        pendingStartTimeMs = null;
-        primed = false;
-
-        beginDriftMonitor();
-        setCountdown("");
-        setStatus(`Playing from ${formatTrackTime(audio.currentTime)}`);
-      }catch(err){
-        console.error(err);
-        setStatus("Playback failed while waiting for buffer");
-      }
+      await startPlaybackAt(offsetSec, anchorMs);
     }
 
     playButton.addEventListener("click", async ()=>{
       clearTimers();
       clearDriftMonitor();
       resetPlaybackRate();
+      setDebug("");
+      startRequested = true;
 
       if(!startInput.value){
         setStatus("Enter a start time");
@@ -535,25 +514,28 @@
 
       playButton.disabled = true;
 
-      const startTime = new Date(startInput.value).getTime();
-      const offset = (Date.now() - startTime) / 1000;
-
       try{
+        hidePlayer();
         startDownload();
+        setStatus("Connecting to audio…");
+
         await ensureMetadata();
         updateDownloadProgress();
 
-        if(offset < 0){
-          scheduledAnchorMs = startTime;
-          pendingStartTimeMs = null;
-          await primeFuturePlayback();
-          beginCountdown(startTime);
+        const startTimeMs = new Date(startInput.value).getTime();
+        const offsetSec = (Date.now() - startTimeMs) / 1000;
+
+        if(offsetSec < 0){
+          scheduledAnchorMs = startTimeMs;
+          pendingStartAnchorMs = null;
+          beginCountdown(startTimeMs);
+          setStatus("Downloading / buffering…");
         }else{
-          await startImmediate(offset);
+          await handleImmediateStart(offsetSec);
         }
       }catch(err){
-        console.error(err);
-        setStatus("Playback failed");
+        setStatus("Audio source did not load");
+        setDebug(`Load failed: ${err.message}`);
       }finally{
         playButton.disabled = false;
       }
@@ -561,32 +543,23 @@
 
     audio.addEventListener("loadedmetadata", ()=>{
       updateDownloadProgress();
+      setDebug("Metadata loaded.");
     });
 
     audio.addEventListener("progress", async ()=>{
       updateDownloadProgress();
 
-      if(scheduledAnchorMs != null){
-        if(Date.now() >= scheduledAnchorMs){
-          await tryPendingStart();
-        }else if(!primed && hasEnoughToStartAt(0)){
-          try{
-            audio.pause();
-            audio.currentTime = 0;
-            audio.muted = true;
-            await audio.play();
-            primed = true;
-            setStatus("Buffered and armed for countdown");
-          }catch(err){
-            // silent on purpose
-          }
-        }
+      if(startRequested){
+        await tryStartPendingPlayback();
       }
     });
 
     audio.addEventListener("canplay", async ()=>{
       updateDownloadProgress();
-      await tryPendingStart();
+
+      if(startRequested){
+        await tryStartPendingPlayback();
+      }
     });
 
     audio.addEventListener("canplaythrough", ()=>{
@@ -595,7 +568,7 @@
     });
 
     audio.addEventListener("waiting", ()=>{
-      if(!audio.ended){
+      if(!audio.ended && !audio.paused){
         setStatus("Buffering…");
       }
     });
@@ -610,12 +583,15 @@
       clearTimers();
       clearDriftMonitor();
       resetPlaybackRate();
+      pendingStartAnchorMs = null;
       setCountdown("");
       setStatus("Playback ended");
+      setDebug("");
     });
 
     audio.addEventListener("error", ()=>{
-      setStatus("Audio failed to load. Check URL, bucket public access, and CORS.");
+      setStatus("Audio failed to load");
+      setDebug("Check custom domain, public bucket, CORS, and direct MP3 URL.");
     });
   </script>
 </body>
