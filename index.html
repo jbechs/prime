@@ -1,601 +1,622 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Confluence II</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confluence II</title>
 
-<style>
-body{
-  margin:0;
-  min-height:100vh;
-  display:grid;
-  place-items:center;
-  background:#111;
-  color:#fff;
-  font-family:Arial, sans-serif;
-}
+  <style>
+    body{
+      margin:0;
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      background:#111;
+      color:#fff;
+      font-family:Arial, sans-serif;
+    }
 
-.container{
-  width:min(90vw,480px);
-  display:grid;
-  gap:16px;
-  text-align:center;
-}
+    .container{
+      width:min(90vw,480px);
+      display:grid;
+      gap:16px;
+      text-align:center;
+    }
 
-h1{
-  margin:0;
-  font-size:1.6rem;
-}
+    h1{
+      margin:0;
+      font-size:1.6rem;
+    }
 
-label{
-  font-size:.95rem;
-}
+    label{
+      font-size:.95rem;
+    }
 
-input,button{
-  font-size:1rem;
-  padding:12px;
-  border-radius:8px;
-  border:none;
-}
+    input, button{
+      font-size:1rem;
+      padding:12px;
+      border-radius:8px;
+      border:none;
+    }
 
-input{
-  background:#222;
-  color:#fff;
-}
+    input{
+      background:#222;
+      color:#fff;
+    }
 
-button{
-  background:#fff;
-  color:#111;
-  font-weight:bold;
-  cursor:pointer;
-}
+    button{
+      background:#fff;
+      color:#111;
+      font-weight:bold;
+      cursor:pointer;
+    }
 
-button:disabled{
-  opacity:.6;
-  cursor:default;
-}
+    button:disabled{
+      opacity:.6;
+      cursor:default;
+    }
 
-.status{
-  min-height:1.4em;
-  color:#bbb;
-}
+    .status{
+      min-height:1.4em;
+      color:#bbb;
+    }
 
-.countdown{
-  min-height:1.4em;
-  font-size:1.2rem;
-  font-weight:bold;
-}
+    .countdown{
+      min-height:1.4em;
+      font-size:1.2rem;
+      font-weight:bold;
+    }
 
-.progressWrap{
-  width:100%;
-  display:grid;
-  gap:8px;
-}
+    .progressWrap{
+      width:100%;
+      display:grid;
+      gap:8px;
+    }
 
-.progressLabel{
-  font-size:.92rem;
-  color:#bbb;
-  min-height:1.2em;
-}
+    .progressLabel{
+      font-size:.92rem;
+      color:#bbb;
+      min-height:1.2em;
+    }
 
-progress{
-  width:100%;
-  height:14px;
-  appearance:none;
-}
+    progress{
+      width:100%;
+      height:14px;
+      appearance:none;
+    }
 
-progress::-webkit-progress-bar{
-  background:#222;
-  border-radius:999px;
-}
+    progress::-webkit-progress-bar{
+      background:#222;
+      border-radius:999px;
+    }
 
-progress::-webkit-progress-value{
-  background:#fff;
-  border-radius:999px;
-}
+    progress::-webkit-progress-value{
+      background:#fff;
+      border-radius:999px;
+    }
 
-progress::-moz-progress-bar{
-  background:#fff;
-  border-radius:999px;
-}
+    progress::-moz-progress-bar{
+      background:#fff;
+      border-radius:999px;
+    }
 
-audio{
-  width:100%;
-}
+    audio{
+      width:100%;
+    }
 
-.hidden{
-  display:none;
-}
+    .hidden{
+      display:none;
+    }
 
-/* iOS datetime field fix */
-input[type="datetime-local"]{
-  color:#fff;
-  background:#222;
-}
+    input[type="datetime-local"]{
+      color:#fff;
+      background:#222;
+    }
 
-input[type="datetime-local"]::-webkit-datetime-edit{
-  color:#fff;
-}
+    input[type="datetime-local"]::-webkit-datetime-edit{
+      color:#fff;
+    }
 
-input[type="datetime-local"]::-webkit-calendar-picker-indicator{
-  filter:invert(1);
-}
-</style>
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator{
+      filter:invert(1);
+    }
+  </style>
 </head>
 
 <body>
+  <main class="container">
+    <h1>Confluence II</h1>
 
-<main class="container">
+    <label for="startTime">Start Time (tap to set)</label>
+    <input id="startTime" type="datetime-local" step="1" placeholder="Tap to choose start time" />
 
-  <h1>Confluence II</h1>
+    <button id="playButton">Play</button>
 
-  <label for="startTime">Start Time (tap to set)</label>
-  <input id="startTime" type="datetime-local" step="1" placeholder="Tap to choose start time">
+    <div id="countdown" class="countdown"></div>
+    <div id="status" class="status">Ready.</div>
 
-  <button id="playButton">Play</button>
+    <div class="progressWrap">
+      <div id="progressLabel" class="progressLabel">Download not started.</div>
+      <progress id="progressBar" value="0" max="1"></progress>
+    </div>
 
-  <div id="countdown" class="countdown"></div>
-  <div id="status" class="status">Ready.</div>
+    <audio
+      id="audio"
+      preload="none"
+      playsinline
+      crossorigin="anonymous"
+      class="hidden">
+    </audio>
+  </main>
 
-  <div class="progressWrap">
-    <div id="progressLabel" class="progressLabel">Download not started.</div>
-    <progress id="progressBar" value="0" max="1"></progress>
-  </div>
+  <script>
+    // Replace this with your real file URL once audio.eggtooth.xyz is active.
+    // Example:
+    // const AUDIO_URL = "https://audio.eggtooth.xyz/prime.mp3";
+    const AUDIO_URL = "https://audio.eggtooth.xyz/prime.mp3";
 
-  <audio
-    id="audio"
-    src="prime.mp3"
-    preload="none"
-    playsinline
-    class="hidden">
-  </audio>
+    const audio = document.getElementById("audio");
+    const playButton = document.getElementById("playButton");
+    const startInput = document.getElementById("startTime");
+    const statusEl = document.getElementById("status");
+    const countdownEl = document.getElementById("countdown");
+    const progressBar = document.getElementById("progressBar");
+    const progressLabel = document.getElementById("progressLabel");
 
-</main>
+    let primed = false;
+    let countdownTimer = null;
+    let countdownInterval = null;
+    let driftInterval = null;
+    let pendingStartTimeMs = null;
+    let scheduledAnchorMs = null;
+    let isSoftCorrecting = false;
+    let sourceAssigned = false;
 
-<script>
-const audio = document.getElementById("audio")
-const playButton = document.getElementById("playButton")
-const startInput = document.getElementById("startTime")
-const statusEl = document.getElementById("status")
-const countdownEl = document.getElementById("countdown")
-const progressBar = document.getElementById("progressBar")
-const progressLabel = document.getElementById("progressLabel")
+    const DRIFT_CHECK_MS = 5000;
+    const DRIFT_THRESHOLD_SEC = 1.5;
+    const DRIFT_RECOVER_SEC = 0.35;
+    const SOFT_RATE_FAST = 1.03;
+    const SOFT_RATE_SLOW = 0.97;
+    const NORMAL_RATE = 1.0;
+    const START_BUFFER_SEC = 2;
 
-let primed = false
-let countdownTimer = null
-let countdownInterval = null
-let driftInterval = null
-let pendingStartTimeMs = null
-let scheduledAnchorMs = null
-let isSoftCorrecting = false
-let userStarted = false
+    function setStatus(msg){
+      statusEl.textContent = msg;
+    }
 
-const DRIFT_CHECK_MS = 5000
-const DRIFT_THRESHOLD_SEC = 1.5
-const DRIFT_RECOVER_SEC = 0.35
-const SOFT_RATE_FAST = 1.03
-const SOFT_RATE_SLOW = 0.97
-const NORMAL_RATE = 1.0
+    function setCountdown(msg){
+      countdownEl.textContent = msg;
+    }
 
-function setStatus(msg){
-  statusEl.textContent = msg
-}
+    function setProgressLabel(msg){
+      progressLabel.textContent = msg;
+    }
 
-function setCountdown(msg){
-  countdownEl.textContent = msg
-}
+    function showPlayer(){
+      audio.classList.remove("hidden");
+      audio.controls = true;
+    }
 
-function setProgressLabel(msg){
-  progressLabel.textContent = msg
-}
+    function hidePlayer(){
+      audio.classList.add("hidden");
+      audio.controls = false;
+    }
 
-function showPlayer(){
-  audio.classList.remove("hidden")
-  audio.controls = true
-}
+    function clearTimers(){
+      if(countdownInterval){
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
 
-function hidePlayer(){
-  audio.classList.add("hidden")
-  audio.controls = false
-}
+      if(countdownTimer){
+        clearTimeout(countdownTimer);
+        countdownTimer = null;
+      }
+    }
 
-function clearTimers(){
-  if(countdownInterval){
-    clearInterval(countdownInterval)
-    countdownInterval = null
-  }
+    function clearDriftMonitor(){
+      if(driftInterval){
+        clearInterval(driftInterval);
+        driftInterval = null;
+      }
+    }
 
-  if(countdownTimer){
-    clearTimeout(countdownTimer)
-    countdownTimer = null
-  }
-}
+    function assignSourceIfNeeded(){
+      if(sourceAssigned) return;
+      audio.src = AUDIO_URL;
+      sourceAssigned = true;
+    }
 
-function clearDriftMonitor(){
-  if(driftInterval){
-    clearInterval(driftInterval)
-    driftInterval = null
-  }
-}
+    function formatCountdown(ms){
+      const s = Math.ceil(ms / 1000);
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+    }
 
-function formatCountdown(ms){
-  const s = Math.ceil(ms / 1000)
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`
-}
+    function formatTrackTime(sec){
+      sec = Math.max(0, Math.floor(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2,"0")}`;
+    }
 
-function formatTrackTime(sec){
-  sec = Math.max(0, Math.floor(sec))
-  const m = Math.floor(sec / 60)
-  const s = sec % 60
-  return `${m}:${String(s).padStart(2,"0")}`
-}
+    function formatPercent(value){
+      return `${Math.round(value * 100)}%`;
+    }
 
-function formatPercent(value){
-  return `${Math.round(value * 100)}%`
-}
+    async function ensureMetadata(){
+      assignSourceIfNeeded();
 
-async function ensureMetadata(){
-  if(audio.readyState >= 1) return
+      if(audio.readyState >= 1) return;
 
-  await new Promise((resolve,reject)=>{
-    const timeout = setTimeout(()=>reject(new Error("metadata timeout")), 15000)
+      await new Promise((resolve, reject)=>{
+        const timeout = setTimeout(()=>{
+          reject(new Error("metadata timeout"));
+        }, 20000);
+
+        audio.addEventListener("loadedmetadata", ()=>{
+          clearTimeout(timeout);
+          resolve();
+        }, { once:true });
+
+        audio.addEventListener("error", ()=>{
+          clearTimeout(timeout);
+          reject(new Error("audio load error"));
+        }, { once:true });
+
+        audio.load();
+      });
+    }
+
+    function waitForSeek(){
+      return new Promise(resolve=>{
+        if(!audio.seeking){
+          resolve();
+          return;
+        }
+
+        audio.addEventListener("seeked", resolve, { once:true });
+      });
+    }
+
+    function startDownload(){
+      assignSourceIfNeeded();
+      audio.preload = "auto";
+      audio.load();
+      setProgressLabel("Downloading / buffering…");
+    }
+
+    function updateDownloadProgress(){
+      try{
+        if(!audio.duration || !isFinite(audio.duration) || audio.buffered.length === 0){
+          return;
+        }
+
+        const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+        const ratio = Math.max(0, Math.min(1, bufferedEnd / audio.duration));
+        progressBar.value = ratio;
+        setProgressLabel(
+          `Buffered: ${formatPercent(ratio)} (${formatTrackTime(bufferedEnd)} of ${formatTrackTime(audio.duration)})`
+        );
+      }catch(err){
+        // silent on purpose
+      }
+    }
+
+    function hasBufferedThrough(targetTimeSec){
+      try{
+        if(audio.buffered.length === 0) return false;
+
+        for(let i = 0; i < audio.buffered.length; i++){
+          const start = audio.buffered.start(i);
+          const end = audio.buffered.end(i);
+
+          if(targetTimeSec >= start && targetTimeSec <= end - 0.25){
+            return true;
+          }
+        }
+
+        return false;
+      }catch(err){
+        return false;
+      }
+    }
+
+    function hasEnoughToStartAt(offsetSec){
+      if(!audio.duration || !isFinite(audio.duration)) return false;
+      return hasBufferedThrough(offsetSec + START_BUFFER_SEC);
+    }
+
+    function resetPlaybackRate(){
+      if(audio.playbackRate !== NORMAL_RATE){
+        audio.playbackRate = NORMAL_RATE;
+      }
+      isSoftCorrecting = false;
+    }
+
+    function getExpectedTrackTimeSec(){
+      if(scheduledAnchorMs == null) return null;
+      return Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
+    }
+
+    function updateCorrectionStatus(driftSec){
+      const abs = Math.abs(driftSec);
+
+      if(abs < DRIFT_THRESHOLD_SEC){
+        if(isSoftCorrecting && abs <= DRIFT_RECOVER_SEC){
+          resetPlaybackRate();
+          setStatus(`Playing in sync (${formatTrackTime(audio.currentTime)})`);
+        }
+        return;
+      }
+
+      if(driftSec > 0){
+        audio.playbackRate = SOFT_RATE_FAST;
+        isSoftCorrecting = true;
+        setStatus(`Soft catch-up correction (${driftSec.toFixed(2)}s late)`);
+      }else{
+        audio.playbackRate = SOFT_RATE_SLOW;
+        isSoftCorrecting = true;
+        setStatus(`Soft slow-down correction (${Math.abs(driftSec).toFixed(2)}s early)`);
+      }
+    }
+
+    function beginDriftMonitor(){
+      clearDriftMonitor();
+
+      driftInterval = setInterval(()=>{
+        if(audio.paused || audio.ended) return;
+        if(scheduledAnchorMs == null) return;
+
+        const expected = getExpectedTrackTimeSec();
+        if(expected == null) return;
+
+        const driftSec = expected - audio.currentTime;
+        updateCorrectionStatus(driftSec);
+      }, DRIFT_CHECK_MS);
+    }
+
+    async function primeFuturePlayback(){
+      await ensureMetadata();
+
+      hidePlayer();
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = true;
+      audio.playbackRate = NORMAL_RATE;
+
+      if(hasEnoughToStartAt(0)){
+        await audio.play();
+        primed = true;
+        setStatus("Buffered and armed for countdown");
+      }else{
+        primed = false;
+        setStatus("Downloading / buffering for countdown");
+      }
+    }
+
+    async function startImmediate(offset){
+      await ensureMetadata();
+
+      audio.pause();
+      audio.playbackRate = NORMAL_RATE;
+
+      if(!hasEnoughToStartAt(offset)){
+        setStatus("Waiting for enough buffered audio…");
+        pendingStartTimeMs = Date.now() - (offset * 1000);
+        scheduledAnchorMs = pendingStartTimeMs;
+        return;
+      }
+
+      audio.currentTime = Math.max(0, offset);
+      await waitForSeek();
+
+      audio.muted = false;
+      showPlayer();
+      await audio.play();
+
+      scheduledAnchorMs = Date.now() - (audio.currentTime * 1000);
+      pendingStartTimeMs = null;
+      primed = false;
+
+      beginDriftMonitor();
+      setStatus(`Playing from ${formatTrackTime(audio.currentTime)}`);
+    }
+
+    async function fireFutureStart(){
+      try{
+        await ensureMetadata();
+
+        if(!hasEnoughToStartAt(0)){
+          setStatus("Countdown reached zero. Waiting for buffered audio…");
+          pendingStartTimeMs = scheduledAnchorMs;
+          return;
+        }
+
+        audio.currentTime = 0;
+        await waitForSeek();
+
+        audio.muted = false;
+        audio.playbackRate = NORMAL_RATE;
+        showPlayer();
+
+        if(!primed){
+          await audio.play();
+        }
+
+        primed = false;
+        pendingStartTimeMs = null;
+
+        setCountdown("");
+        setStatus("Playing");
+        beginDriftMonitor();
+      }catch(err){
+        console.error(err);
+        setStatus("Playback failed at start");
+      }
+    }
+
+    function beginCountdown(startTime){
+      clearTimers();
+
+      function update(){
+        const remaining = startTime - Date.now();
+
+        if(remaining <= 0){
+          clearTimers();
+          setCountdown("Starting now");
+          fireFutureStart();
+          return;
+        }
+
+        setCountdown(`Starting in ${formatCountdown(remaining)}`);
+        setStatus("Waiting");
+      }
+
+      update();
+
+      countdownInterval = setInterval(update, 250);
+
+      countdownTimer = setTimeout(()=>{
+        clearTimers();
+        setCountdown("Starting now");
+        fireFutureStart();
+      }, Math.max(0, startTime - Date.now()));
+    }
+
+    async function tryPendingStart(){
+      if(pendingStartTimeMs == null) return;
+      if(audio.paused === false) return;
+      if(audio.readyState < 1) return;
+
+      const desiredOffset = Math.max(0, (Date.now() - pendingStartTimeMs) / 1000);
+
+      if(!hasEnoughToStartAt(desiredOffset)){
+        return;
+      }
+
+      try{
+        audio.currentTime = desiredOffset;
+        await waitForSeek();
+
+        audio.muted = false;
+        audio.playbackRate = NORMAL_RATE;
+        showPlayer();
+        await audio.play();
+
+        scheduledAnchorMs = pendingStartTimeMs;
+        pendingStartTimeMs = null;
+        primed = false;
+
+        beginDriftMonitor();
+        setCountdown("");
+        setStatus(`Playing from ${formatTrackTime(audio.currentTime)}`);
+      }catch(err){
+        console.error(err);
+        setStatus("Playback failed while waiting for buffer");
+      }
+    }
+
+    playButton.addEventListener("click", async ()=>{
+      clearTimers();
+      clearDriftMonitor();
+      resetPlaybackRate();
+
+      if(!startInput.value){
+        setStatus("Enter a start time");
+        return;
+      }
+
+      if(!AUDIO_URL.startsWith("http")){
+        setStatus("Add your audio URL first");
+        return;
+      }
+
+      playButton.disabled = true;
+
+      const startTime = new Date(startInput.value).getTime();
+      const offset = (Date.now() - startTime) / 1000;
+
+      try{
+        startDownload();
+        await ensureMetadata();
+        updateDownloadProgress();
+
+        if(offset < 0){
+          scheduledAnchorMs = startTime;
+          pendingStartTimeMs = null;
+          await primeFuturePlayback();
+          beginCountdown(startTime);
+        }else{
+          await startImmediate(offset);
+        }
+      }catch(err){
+        console.error(err);
+        setStatus("Playback failed");
+      }finally{
+        playButton.disabled = false;
+      }
+    });
 
     audio.addEventListener("loadedmetadata", ()=>{
-      clearTimeout(timeout)
-      resolve()
-    }, { once:true })
+      updateDownloadProgress();
+    });
+
+    audio.addEventListener("progress", async ()=>{
+      updateDownloadProgress();
+
+      if(scheduledAnchorMs != null){
+        if(Date.now() >= scheduledAnchorMs){
+          await tryPendingStart();
+        }else if(!primed && hasEnoughToStartAt(0)){
+          try{
+            audio.pause();
+            audio.currentTime = 0;
+            audio.muted = true;
+            await audio.play();
+            primed = true;
+            setStatus("Buffered and armed for countdown");
+          }catch(err){
+            // silent on purpose
+          }
+        }
+      }
+    });
+
+    audio.addEventListener("canplay", async ()=>{
+      updateDownloadProgress();
+      await tryPendingStart();
+    });
+
+    audio.addEventListener("canplaythrough", ()=>{
+      progressBar.value = 1;
+      setProgressLabel("Buffered: 100%");
+    });
+
+    audio.addEventListener("waiting", ()=>{
+      if(!audio.ended){
+        setStatus("Buffering…");
+      }
+    });
+
+    audio.addEventListener("playing", ()=>{
+      if(!isSoftCorrecting){
+        setStatus(`Playing (${formatTrackTime(audio.currentTime)})`);
+      }
+    });
+
+    audio.addEventListener("ended", ()=>{
+      clearTimers();
+      clearDriftMonitor();
+      resetPlaybackRate();
+      setCountdown("");
+      setStatus("Playback ended");
+    });
 
     audio.addEventListener("error", ()=>{
-      clearTimeout(timeout)
-      reject(new Error("audio load error"))
-    }, { once:true })
-
-    audio.load()
-  })
-}
-
-function waitForSeek(){
-  return new Promise(resolve=>{
-    if(!audio.seeking){
-      resolve()
-      return
-    }
-
-    audio.addEventListener("seeked", resolve, { once:true })
-  })
-}
-
-function startDownload(){
-  audio.preload = "auto"
-  audio.load()
-  setProgressLabel("Downloading / buffering…")
-}
-
-function updateDownloadProgress(){
-  try{
-    if(!audio.duration || !isFinite(audio.duration) || audio.buffered.length === 0){
-      return
-    }
-
-    const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
-    const ratio = Math.max(0, Math.min(1, bufferedEnd / audio.duration))
-    progressBar.value = ratio
-    setProgressLabel(`Buffered: ${formatPercent(ratio)} (${formatTrackTime(bufferedEnd)} of ${formatTrackTime(audio.duration)})`)
-  }catch(err){
-    // intentionally silent
-  }
-}
-
-function hasBufferedThrough(targetTimeSec){
-  try{
-    if(audio.buffered.length === 0) return false
-
-    for(let i = 0; i < audio.buffered.length; i++){
-      const start = audio.buffered.start(i)
-      const end = audio.buffered.end(i)
-      if(targetTimeSec >= start && targetTimeSec <= end - 0.25){
-        return true
-      }
-    }
-
-    return false
-  }catch(err){
-    return false
-  }
-}
-
-function hasEnoughToStartAt(offsetSec){
-  if(!audio.duration || !isFinite(audio.duration)) return false
-  return hasBufferedThrough(offsetSec + 2)
-}
-
-function resetPlaybackRate(){
-  if(audio.playbackRate !== NORMAL_RATE){
-    audio.playbackRate = NORMAL_RATE
-  }
-  isSoftCorrecting = false
-}
-
-function getExpectedTrackTimeSec(){
-  if(scheduledAnchorMs == null) return null
-  return Math.max(0, (Date.now() - scheduledAnchorMs) / 1000)
-}
-
-function updateCorrectionStatus(driftSec){
-  const abs = Math.abs(driftSec)
-
-  if(abs < DRIFT_THRESHOLD_SEC){
-    if(isSoftCorrecting && abs <= DRIFT_RECOVER_SEC){
-      resetPlaybackRate()
-      setStatus(`Playing in sync (${formatTrackTime(audio.currentTime)})`)
-    }
-    return
-  }
-
-  if(driftSec > 0){
-    audio.playbackRate = SOFT_RATE_FAST
-    isSoftCorrecting = true
-    setStatus(`Soft catch-up correction (${driftSec.toFixed(2)}s late)`)
-  }else{
-    audio.playbackRate = SOFT_RATE_SLOW
-    isSoftCorrecting = true
-    setStatus(`Soft slow-down correction (${Math.abs(driftSec).toFixed(2)}s early)`)
-  }
-}
-
-function beginDriftMonitor(){
-  clearDriftMonitor()
-
-  driftInterval = setInterval(()=>{
-    if(audio.paused || audio.ended) return
-    if(scheduledAnchorMs == null) return
-
-    const expected = getExpectedTrackTimeSec()
-    if(expected == null) return
-
-    const driftSec = expected - audio.currentTime
-
-    updateCorrectionStatus(driftSec)
-  }, DRIFT_CHECK_MS)
-}
-
-async function primeFuturePlayback(){
-  await ensureMetadata()
-
-  hidePlayer()
-
-  audio.pause()
-  audio.currentTime = 0
-  audio.muted = true
-  audio.playbackRate = NORMAL_RATE
-
-  if(hasEnoughToStartAt(0)){
-    await audio.play()
-    primed = true
-    setStatus("Buffered and armed for countdown")
-  }else{
-    primed = false
-    setStatus("Downloading / buffering for countdown")
-  }
-}
-
-async function startImmediate(offset){
-  await ensureMetadata()
-
-  audio.pause()
-  audio.playbackRate = NORMAL_RATE
-
-  if(!hasEnoughToStartAt(offset)){
-    setStatus("Waiting for enough buffered audio…")
-    pendingStartTimeMs = Date.now() - (offset * 1000)
-    scheduledAnchorMs = pendingStartTimeMs
-    return
-  }
-
-  audio.currentTime = Math.max(0, offset)
-  await waitForSeek()
-
-  audio.muted = false
-  showPlayer()
-  await audio.play()
-
-  scheduledAnchorMs = Date.now() - (audio.currentTime * 1000)
-  pendingStartTimeMs = null
-  primed = false
-
-  beginDriftMonitor()
-  setStatus(`Playing from ${formatTrackTime(audio.currentTime)}`)
-}
-
-async function fireFutureStart(){
-  try{
-    await ensureMetadata()
-
-    if(!hasEnoughToStartAt(0)){
-      setStatus("Countdown reached zero. Waiting for buffered audio…")
-      pendingStartTimeMs = scheduledAnchorMs
-      return
-    }
-
-    audio.currentTime = 0
-    await waitForSeek()
-
-    audio.muted = false
-    audio.playbackRate = NORMAL_RATE
-    showPlayer()
-
-    if(!primed){
-      await audio.play()
-    }
-
-    primed = false
-    pendingStartTimeMs = null
-
-    setCountdown("")
-    setStatus("Playing")
-    beginDriftMonitor()
-  }catch(err){
-    console.error(err)
-    setStatus("Playback failed at start")
-  }
-}
-
-function beginCountdown(startTime){
-  clearTimers()
-
-  function update(){
-    const remaining = startTime - Date.now()
-
-    if(remaining <= 0){
-      clearTimers()
-      setCountdown("Starting now")
-      fireFutureStart()
-      return
-    }
-
-    setCountdown(`Starting in ${formatCountdown(remaining)}`)
-    setStatus("Waiting")
-  }
-
-  update()
-
-  countdownInterval = setInterval(update, 250)
-
-  countdownTimer = setTimeout(()=>{
-    clearTimers()
-    setCountdown("Starting now")
-    fireFutureStart()
-  }, Math.max(0, startTime - Date.now()))
-}
-
-async function tryPendingStart(){
-  if(pendingStartTimeMs == null) return
-  if(audio.paused === false) return
-  if(audio.readyState < 1) return
-
-  const desiredOffset = Math.max(0, (Date.now() - pendingStartTimeMs) / 1000)
-
-  if(!hasEnoughToStartAt(desiredOffset)){
-    return
-  }
-
-  try{
-    audio.currentTime = desiredOffset
-    await waitForSeek()
-
-    audio.muted = false
-    audio.playbackRate = NORMAL_RATE
-    showPlayer()
-    await audio.play()
-
-    scheduledAnchorMs = pendingStartTimeMs
-    pendingStartTimeMs = null
-    primed = false
-
-    beginDriftMonitor()
-    setCountdown("")
-    setStatus(`Playing from ${formatTrackTime(audio.currentTime)}`)
-  }catch(err){
-    console.error(err)
-    setStatus("Playback failed while waiting for buffer")
-  }
-}
-
-playButton.addEventListener("click", async ()=>{
-  clearTimers()
-  clearDriftMonitor()
-  resetPlaybackRate()
-
-  if(!startInput.value){
-    setStatus("Enter a start time")
-    return
-  }
-
-  playButton.disabled = true
-  userStarted = true
-
-  const startTime = new Date(startInput.value).getTime()
-  const offset = (Date.now() - startTime) / 1000
-
-  try{
-    startDownload()
-    await ensureMetadata()
-    updateDownloadProgress()
-
-    if(offset < 0){
-      scheduledAnchorMs = startTime
-      pendingStartTimeMs = null
-      await primeFuturePlayback()
-      beginCountdown(startTime)
-    }else{
-      await startImmediate(offset)
-    }
-  }catch(err){
-    console.error(err)
-    setStatus("Playback failed")
-  }finally{
-    playButton.disabled = false
-  }
-})
-
-audio.addEventListener("loadedmetadata", ()=>{
-  updateDownloadProgress()
-})
-
-audio.addEventListener("progress", async ()=>{
-  updateDownloadProgress()
-
-  if(userStarted && scheduledAnchorMs != null){
-    if(Date.now() >= scheduledAnchorMs){
-      await tryPendingStart()
-    }else if(!primed && hasEnoughToStartAt(0)){
-      try{
-        audio.pause()
-        audio.currentTime = 0
-        audio.muted = true
-        await audio.play()
-        primed = true
-        setStatus("Buffered and armed for countdown")
-      }catch(err){
-        // silent; countdown can still continue and retry at start
-      }
-    }
-  }
-})
-
-audio.addEventListener("canplay", async ()=>{
-  updateDownloadProgress()
-  await tryPendingStart()
-})
-
-audio.addEventListener("canplaythrough", ()=>{
-  progressBar.value = 1
-  setProgressLabel("Buffered: 100%")
-})
-
-audio.addEventListener("waiting", ()=>{
-  if(!audio.ended){
-    setStatus("Buffering…")
-  }
-})
-
-audio.addEventListener("playing", ()=>{
-  if(!isSoftCorrecting){
-    setStatus(`Playing (${formatTrackTime(audio.currentTime)})`)
-  }
-})
-
-audio.addEventListener("ended", ()=>{
-  clearTimers()
-  clearDriftMonitor()
-  resetPlaybackRate()
-  setCountdown("")
-  setStatus("Playback ended")
-})
-</script>
-
+      setStatus("Audio failed to load. Check URL, bucket public access, and CORS.");
+    });
+  </script>
 </body>
 </html>
