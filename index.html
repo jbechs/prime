@@ -56,10 +56,11 @@
       color:#111;
       font-weight:bold;
       cursor:pointer;
+      min-width:140px;
+      justify-self:center;
     }
 
     button:disabled{
-      opacity:.6;
       cursor:default;
     }
 
@@ -227,6 +228,12 @@
       if(sourceAssigned) return;
       audio.src = AUDIO_URL;
       sourceAssigned = true;
+    }
+
+    function lockBeginButton(){
+      playButton.disabled = true;
+      playButton.textContent = "In Progress";
+      playButton.style.opacity = "0.4";
     }
 
     function formatCountdown(ms){
@@ -397,6 +404,7 @@
       showPlayer();
       await audio.play();
 
+      lockBeginButton();
       waitingForManualStart = false;
       hideStartNow();
       setCountdown("");
@@ -564,6 +572,8 @@
     });
 
     audio.addEventListener("playing", ()=>{
+      lockBeginButton();
+
       if(!isSoftCorrecting){
         setStatus("Playing");
       }
