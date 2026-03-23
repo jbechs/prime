@@ -56,6 +56,22 @@
       cursor:default;
     }
 
+    .primary{
+      background:#fff;
+      color:#111;
+    }
+
+    .secondary{
+      background:#2a2a2a;
+      color:#fff;
+      border:1px solid #444;
+    }
+
+    .startNow{
+      font-size:1.15rem;
+      padding:16px;
+    }
+
     .status{
       min-height:1.4em;
       color:#bbb;
@@ -137,7 +153,9 @@
     <label for="startTime">Start Time (tap to set)</label>
     <input id="startTime" type="datetime-local" step="1" placeholder="Tap to choose start time" />
 
-    <button id="playButton">Play</button>
+    <button id="playButton" class="primary">Load / Prepare</button>
+
+    <button id="startNowButton" class="primary startNow hidden">Start Now</button>
 
     <div id="countdown" class="countdown"></div>
     <div id="status" class="status">Ready.</div>
@@ -163,6 +181,7 @@
 
     const audio = document.getElementById("audio");
     const playButton = document.getElementById("playButton");
+    const startNowButton = document.getElementById("startNowButton");
     const startInput = document.getElementById("startTime");
     const statusEl = document.getElementById("status");
     const countdownEl = document.getElementById("countdown");
@@ -173,11 +192,14 @@
     let countdownTimer = null;
     let countdownInterval = null;
     let driftInterval = null;
-    let pendingStartAnchorMs = null;
+
     let scheduledAnchorMs = null;
     let isSoftCorrecting = false;
     let sourceAssigned = false;
-    let startRequested = false;
+    let preparationStarted = false;
+    let autoStartAttempted = false;
+    let waitingForManualStart = false;
+    let playbackHasBegun = false;
 
     const DRIFT_CHECK_MS = 5000;
     const DRIFT_THRESHOLD_SEC = 1.5;
@@ -211,6 +233,14 @@
     function hidePlayer(){
       audio.classList.add("hidden");
       audio.controls = false;
+    }
+
+    function showStartNow(){
+      startNowButton.classList.remove("hidden");
+    }
+
+    function hideStartNow(){
+      startNowButton.classList.add("hidden");
     }
 
     function clearTimers(){
@@ -395,41 +425,54 @@
       }, DRIFT_CHECK_MS);
     }
 
-    async function startPlaybackAt(offsetSec, anchorMs){
+    async function startPlaybackAtCurrentCorrectOffset(){
+      if(scheduledAnchorMs == null){
+        throw new Error("No scheduled anchor");
+      }
+
+      await ensureMetadata();
+
+      const offsetSec = Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
+
+      if(!hasEnoughToStartAt(offsetSec)){
+        setStatus("Still buffering for start…");
+        setDebug(`Need more buffer at ${formatTrackTime(offsetSec)}.`);
+        return false;
+      }
+
       audio.pause();
       resetPlaybackRate();
 
-      audio.currentTime = Math.max(0, offsetSec);
+      audio.currentTime = offsetSec;
       await waitForSeek();
 
       audio.muted = false;
       showPlayer();
       await audio.play();
 
-      scheduledAnchorMs = anchorMs;
-      pendingStartAnchorMs = null;
-      beginDriftMonitor();
+      playbackHasBegun = true;
+      waitingForManualStart = false;
+      hideStartNow();
       setCountdown("");
       setStatus(`Playing from ${formatTrackTime(audio.currentTime)}`);
       setDebug("");
+      beginDriftMonitor();
+      return true;
     }
 
-    async function tryStartPendingPlayback(){
-      if(pendingStartAnchorMs == null) return;
-      if(audio.readyState < 1) return;
-      if(!audio.paused) return;
-
-      const desiredOffset = Math.max(0, (Date.now() - pendingStartAnchorMs) / 1000);
-
-      if(!hasEnoughToStartAt(desiredOffset)){
-        return;
-      }
+    async function tryAutomaticStart(){
+      autoStartAttempted = true;
 
       try{
-        await startPlaybackAt(desiredOffset, pendingStartAnchorMs);
+        const started = await startPlaybackAtCurrentCorrectOffset();
+        if(!started){
+          showStartNow();
+        }
       }catch(err){
-        setStatus("Playback start was blocked");
-        setDebug(`Tap Play again if needed: ${err.message}`);
+        waitingForManualStart = true;
+        showStartNow();
+        setStatus("Tap Start Now");
+        setDebug(`Automatic start was blocked: ${err.message}`);
       }
     }
 
@@ -442,7 +485,7 @@
         if(remaining <= 0){
           clearTimers();
           setCountdown("Starting now");
-          fireScheduledStart();
+          tryAutomaticStart();
           return;
         }
 
@@ -457,50 +500,19 @@
       countdownTimer = setTimeout(()=>{
         clearTimers();
         setCountdown("Starting now");
-        fireScheduledStart();
+        tryAutomaticStart();
       }, Math.max(0, startTimeMs - Date.now()));
     }
 
-    async function fireScheduledStart(){
-      try{
-        await ensureMetadata();
-
-        if(!hasEnoughToStartAt(0)){
-          setStatus("Countdown reached zero. Waiting for buffered audio…");
-          setDebug("Not enough buffered audio at scheduled start.");
-          pendingStartAnchorMs = scheduledAnchorMs;
-          return;
-        }
-
-        await startPlaybackAt(0, scheduledAnchorMs);
-      }catch(err){
-        setStatus("Playback start failed");
-        setDebug(`Scheduled start failed: ${err.message}`);
-      }
-    }
-
-    async function handleImmediateStart(offsetSec){
-      await ensureMetadata();
-
-      const anchorMs = Date.now() - (offsetSec * 1000);
-
-      if(!hasEnoughToStartAt(offsetSec)){
-        pendingStartAnchorMs = anchorMs;
-        scheduledAnchorMs = anchorMs;
-        setStatus("Waiting for enough buffered audio…");
-        setDebug("Immediate late-join start is waiting for buffer.");
-        return;
-      }
-
-      await startPlaybackAt(offsetSec, anchorMs);
-    }
-
-    playButton.addEventListener("click", async ()=>{
+    async function handlePrepare(){
       clearTimers();
       clearDriftMonitor();
       resetPlaybackRate();
+      hideStartNow();
+      waitingForManualStart = false;
+      playbackHasBegun = false;
+      autoStartAttempted = false;
       setDebug("");
-      startRequested = true;
 
       if(!startInput.value){
         setStatus("Enter a start time");
@@ -515,6 +527,7 @@
       playButton.disabled = true;
 
       try{
+        preparationStarted = true;
         hidePlayer();
         startDownload();
         setStatus("Connecting to audio…");
@@ -525,13 +538,18 @@
         const startTimeMs = new Date(startInput.value).getTime();
         const offsetSec = (Date.now() - startTimeMs) / 1000;
 
+        scheduledAnchorMs = startTimeMs;
+
         if(offsetSec < 0){
-          scheduledAnchorMs = startTimeMs;
-          pendingStartAnchorMs = null;
           beginCountdown(startTimeMs);
           setStatus("Downloading / buffering…");
+          setDebug("Prepared for scheduled start.");
         }else{
-          await handleImmediateStart(offsetSec);
+          setCountdown("");
+          setStatus("Tap Start Now");
+          waitingForManualStart = true;
+          showStartNow();
+          setDebug("Start time is already in the past; manual start will jump to the correct offset.");
         }
       }catch(err){
         setStatus("Audio source did not load");
@@ -539,7 +557,32 @@
       }finally{
         playButton.disabled = false;
       }
-    });
+    }
+
+    async function handleManualStart(){
+      if(scheduledAnchorMs == null){
+        setStatus("Load / Prepare first");
+        return;
+      }
+
+      startNowButton.disabled = true;
+
+      try{
+        const started = await startPlaybackAtCurrentCorrectOffset();
+        if(!started){
+          showStartNow();
+        }
+      }catch(err){
+        setStatus("Start failed");
+        setDebug(`Manual start failed: ${err.message}`);
+        showStartNow();
+      }finally{
+        startNowButton.disabled = false;
+      }
+    }
+
+    playButton.addEventListener("click", handlePrepare);
+    startNowButton.addEventListener("click", handleManualStart);
 
     audio.addEventListener("loadedmetadata", ()=>{
       updateDownloadProgress();
@@ -549,16 +592,22 @@
     audio.addEventListener("progress", async ()=>{
       updateDownloadProgress();
 
-      if(startRequested){
-        await tryStartPendingPlayback();
+      if(waitingForManualStart && scheduledAnchorMs != null){
+        const offsetSec = Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
+        if(hasEnoughToStartAt(offsetSec)){
+          setStatus("Ready — tap Start Now");
+        }
       }
     });
 
-    audio.addEventListener("canplay", async ()=>{
+    audio.addEventListener("canplay", ()=>{
       updateDownloadProgress();
 
-      if(startRequested){
-        await tryStartPendingPlayback();
+      if(waitingForManualStart && scheduledAnchorMs != null){
+        const offsetSec = Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
+        if(hasEnoughToStartAt(offsetSec)){
+          setStatus("Ready — tap Start Now");
+        }
       }
     });
 
@@ -583,10 +632,12 @@
       clearTimers();
       clearDriftMonitor();
       resetPlaybackRate();
-      pendingStartAnchorMs = null;
+      waitingForManualStart = false;
+      playbackHasBegun = false;
       setCountdown("");
       setStatus("Playback ended");
       setDebug("");
+      showPlayer();
     });
 
     audio.addEventListener("error", ()=>{
