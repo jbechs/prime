@@ -321,6 +321,11 @@
 
     function hasEnoughToStartAt(offsetSec){
       if(!audio.duration || !isFinite(audio.duration)) return false;
+
+      if(offsetSec < 1){
+        return audio.readyState >= 3 || audio.buffered.length > 0;
+      }
+
       return hasBufferedThrough(offsetSec + START_BUFFER_SEC);
     }
 
@@ -377,8 +382,8 @@
       const offsetSec = Math.max(0, (Date.now() - scheduledAnchorMs) / 1000);
 
       if(!hasEnoughToStartAt(offsetSec)){
-        setStatus("Still downloading…");
-        setDebug(`Need more audio at ${formatClockTime(offsetSec)}.`);
+        setStatus("Preparing audio…");
+        setDebug(`Waiting for enough audio at ${formatClockTime(offsetSec)}.`);
         return false;
       }
 
@@ -480,7 +485,6 @@
         if(offsetSec < 0){
           beginCountdown(startTimeMs);
           setStatus("Downloading…");
-          setDebug("");
         }else{
           setCountdown("");
           setStatus("Tap Begin");
@@ -523,7 +527,7 @@
 
     audio.addEventListener("loadedmetadata", ()=>{
       updateTransport();
-      setDebug("Metadata loaded.");
+      setDebug("");
     });
 
     audio.addEventListener("durationchange", updateTransport);
